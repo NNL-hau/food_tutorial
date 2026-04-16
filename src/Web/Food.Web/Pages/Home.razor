@@ -1,0 +1,399 @@
+@page "/"
+@using Food.Web.Services
+@inject NavigationManager Navigation
+@inject ICategoryApiService CategoryService
+@inject ICouponApiService CouponService
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IJSRuntime JSRuntime
+
+<PageTitle>FoodOrder - Đặt Món Ăn Ngon, Giao Tận Nơi</PageTitle>
+
+@if (showLuckyDrop && luckyCoupon != null)
+{
+    <div class="lucky-drop-overlay animate__animated animate__fadeIn">
+        <div class="lucky-drop-box animate__animated animate__zoomIn">
+            <button class="lucky-close-btn" @onclick="CloseLuckyDrop"><i class="fa-solid fa-xmark"></i></button>
+            <div class="lucky-drop-header">
+                <i class="fa-solid fa-gift lucky-icon"></i>
+                <h3>Ưu đãi dành riêng cho bạn!</h3>
+                <p>Bạn vừa nhận được một mã giảm giá ngẫu nhiên. Nhanh tay sử dụng nhé!</p>
+            </div>
+            <div class="lucky-drop-body">
+                <div class="lucky-coupon-card">
+                    <div class="coupon-amount">
+                        @(luckyCoupon.DiscountType == "Percent" ? luckyCoupon.DiscountValue + "%" : luckyCoupon.DiscountValue.ToString("N0") + "đ")
+                    </div>
+                    <div class="coupon-details">
+                        <strong>@luckyCoupon.Code</strong>
+                        <span>@luckyCoupon.Description</span>
+                        <small>Đơn tối thiểu: @luckyCoupon.MinOrderAmount.ToString("N0")đ</small>
+                    </div>
+                </div>
+            </div>
+            <div class="lucky-drop-footer">
+                <button class="btn btn-copy-coupon w-100" @onclick="SaveCouponCode">
+                    @if (isCopied)
+                    {
+                        <span><i class="fa-solid fa-check"></i> Đã nhận mã thành công</span>
+                    }
+                    else
+                    {
+                        <span><i class="fa-solid fa-download"></i> Nhận mã</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="home-page">
+    <BannerCarousel />
+    
+    <!-- Why Choose Us / Features -->
+    <section class="features-section">
+        <div class="container">
+            <div class="features-grid">
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="fa-solid fa-motorcycle"></i>
+                    </div>
+                    <div class="feature-text">
+                        <h4>Giao Hàng Nhanh</h4>
+                        <p>Trong vòng 30 phút</p>
+                    </div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="fa-solid fa-shield-check"></i>
+                    </div>
+                    <div class="feature-text">
+                        <h4>Thực Phẩm An Toàn</h4>
+                        <p>Chất lượng kiểm định</p>
+                    </div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </div>
+                    <div class="feature-text">
+                        <h4>Hoàn Tiền Dễ Dàng</h4>
+                        <p>Nếu không hài lòng</p>
+                    </div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="fa-solid fa-headset"></i>
+                    </div>
+                    <div class="feature-text">
+                        <h4>Hỗ Trợ 24/7</h4>
+                        <p>Tận tâm &amp; Chu đáo</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Category Spotlight -->
+    <section class="category-spotlight">
+        <div class="container">
+            <div class="section-title">
+                <h2>Danh Mục Thực Đơn</h2>
+                <div class="title-underline"></div>
+            </div>
+            <div class="spotlight-grid">
+                <a href="/products?category=Món+Chính" class="spotlight-item spotlight-main">
+                    <div class="spotlight-content">
+                        <h3>MÓN CHÍNH</h3>
+                        <span class="btn-discover">Xem thực đơn</span>
+                    </div>
+                </a>
+                <a href="/products?category=Đồ+Uống" class="spotlight-item spotlight-drink">
+                    <div class="spotlight-content">
+                        <h3>ĐỒ UỐNG</h3>
+                        <span class="btn-discover">Xem thực đơn</span>
+                    </div>
+                </a>
+                <a href="/products?category=Tráng+Miệng" class="spotlight-item spotlight-dessert">
+                    <div class="spotlight-content">
+                        <h3>TRÁNG MIỆNG</h3>
+                        <span class="btn-discover">Xem thực đơn</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Product Section with Filter Panel -->
+    <section class="products-section">
+        <div class="container">
+            <div class="section-title">
+                <h2>THỰC ĐƠN HÔM NAY</h2>
+                <div class="title-underline"></div>
+            </div>
+
+            <!-- Filter Panel -->
+            <div class="home-filter-panel">
+                <!-- Row 1: Search + Category chips -->
+                <div class="filter-row filter-row-top">
+                    <!-- Search -->
+                    <div class="filter-group filter-search">
+                        <label class="filter-label"><i class="fa-solid fa-magnifying-glass me-1"></i> Tìm kiếm món ăn</label>
+                        <div class="search-wrap">
+                            <input type="text"
+                                   @bind="tempSearch"
+                                   @bind:event="oninput"
+                                   @onkeyup="HandleKeyUp"
+                                   placeholder="Tên món ăn..."
+                                   class="filter-input" />
+                            @if (!string.IsNullOrEmpty(tempSearch))
+                            {
+                                <button class="clear-btn" @onclick="() => tempSearch = string.Empty">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Price range -->
+                    <div class="filter-group filter-price">
+                        <label class="filter-label"><i class="fa-solid fa-tag me-1"></i> Khoảng giá</label>
+                        <div class="price-row">
+                            <input type="number" @bind="minPrice" placeholder="Từ (₫)" class="filter-input price-input" min="0" />
+                            <span class="price-sep">—</span>
+                            <input type="number" @bind="maxPrice" placeholder="Đến (₫)" class="filter-input price-input" min="0" />
+                        </div>
+                    </div>
+
+                    <!-- Sort -->
+                    <div class="filter-group filter-sort">
+                        <label class="filter-label"><i class="fa-solid fa-arrow-up-wide-short me-1"></i> Sắp xếp giá</label>
+                        <div class="sort-pills">
+                            <button class="sort-pill @(tempSortOrder == "price_asc" ? "active" : "")"
+                                    @onclick='() => ToggleSort("price_asc")'>
+                                <i class="fa-solid fa-arrow-up"></i> Tăng dần
+                            </button>
+                            <button class="sort-pill @(tempSortOrder == "price_desc" ? "active" : "")"
+                                    @onclick='() => ToggleSort("price_desc")'>
+                                <i class="fa-solid fa-arrow-down"></i> Giảm dần
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stock -->
+                    <div class="filter-group filter-stock">
+                        <label class="filter-label"><i class="fa-solid fa-bowl-food me-1"></i> Trạng thái</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" @bind="inStockOnly" />
+                            <span class="toggle-track">
+                                <span class="toggle-thumb"></span>
+                            </span>
+                            <span class="toggle-text">Còn món</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Row 2: Category chips -->
+                <div class="filter-row filter-row-cats">
+                    <label class="filter-label"><i class="fa-solid fa-utensils me-1"></i> Danh mục món</label>
+                    <div class="cat-chips">
+                        <button class="cat-chip @(string.IsNullOrEmpty(tempCategory) ? "active" : "")"
+                                @onclick='() => tempCategory = string.Empty'>
+                            Tất cả
+                        </button>
+                        @if (categories != null)
+                        {
+                            @foreach (var cat in categories)
+                            {
+                                <button class="cat-chip @(tempCategory == cat.Name ? "active" : "")"
+                                        @onclick="() => tempCategory = cat.Name">
+                                    @cat.Name
+                                </button>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <!-- Action Row -->
+                <div class="filter-row filter-row-actions">
+                    <div class="active-filters">
+                        @if (!string.IsNullOrEmpty(appliedSearch))
+                        {
+                            <span class="active-tag">🔍 @appliedSearch <button @onclick="() => { appliedSearch = null; tempSearch = string.Empty; ApplyFilters(); }">×</button></span>
+                        }
+                        @if (!string.IsNullOrEmpty(appliedCategory))
+                        {
+                            <span class="active-tag">📂 @appliedCategory <button @onclick="() => { appliedCategory = null; tempCategory = string.Empty; ApplyFilters(); }">×</button></span>
+                        }
+                        @if (appliedMinPrice.HasValue || appliedMaxPrice.HasValue)
+                        {
+                            <span class="active-tag">💰 @(appliedMinPrice.HasValue ? appliedMinPrice + "đ" : "0") — @(appliedMaxPrice.HasValue ? appliedMaxPrice + "đ" : "∞") <button @onclick="() => { appliedMinPrice = null; appliedMaxPrice = null; minPrice = null; maxPrice = null; ApplyFilters(); }">×</button></span>
+                        }
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn-apply" @onclick="ApplyFilters">
+                            <i class="fa-solid fa-filter me-1"></i> Áp dụng
+                        </button>
+                        <button class="btn-reset" @onclick="ResetFilters">
+                            <i class="fa-solid fa-rotate-left me-1"></i> Đặt lại
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product List -->
+            <ProductList Title="@ProductListTitle"
+                         InitialCount="12"
+                         CategoryKeyword="@appliedCategory"
+                         SearchKeyword="@appliedSearch"
+                         MinPrice="@appliedMinPrice"
+                         MaxPrice="@appliedMaxPrice"
+                         InStockOnly="@appliedInStockOnly"
+                         SortOrder="@appliedSortOrder" />
+        </div>
+    </section>
+</div>
+
+@inject NavigationManager Navigation
+@inject IAuthService AuthService
+
+@code {
+    private List<CategoryDto> categories = new();
+
+    // Temp (UI state)
+    private string tempSearch = "";
+    private string tempCategory = "";
+    private decimal? minPrice;
+    private decimal? maxPrice;
+    private bool inStockOnly;
+    private string? tempSortOrder;
+
+    // Applied (passed to ProductList)
+    private string? appliedSearch;
+    private string? appliedCategory;
+    private decimal? appliedMinPrice;
+    private decimal? appliedMaxPrice;
+    private bool appliedInStockOnly;
+    private string? appliedSortOrder;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var role = await AuthService.GetUserRoleAsync();
+        if (role == "Admin")
+        {
+            Navigation.NavigateTo("/admin");
+        }
+        else
+        {
+            await CheckLuckyDropAsync();
+        }
+        
+        categories = await CategoryService.GetCategoriesAsync();
+    }
+
+    private bool showLuckyDrop = false;
+    private CouponDto? luckyCoupon;
+    private bool isCopied = false;
+
+    private async Task CheckLuckyDropAsync()
+    {
+        try
+        {
+            // Chỉ thả mã nếu user đã đăng nhập
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user == null) return;
+
+            // Tạm thời ẩn điều kiện LocalStorage & Xác Suất 60% để dev/tester dễ xem
+            // var hasShown = await LocalStorage.GetItemAsync<bool>("lucky_drop_shown");
+            
+            var activeCoupons = await CouponService.GetActiveAsync(user.Email);
+            if (activeCoupons != null && activeCoupons.Any())
+            {
+                var rand = new Random();
+                luckyCoupon = activeCoupons[rand.Next(activeCoupons.Count)];
+                showLuckyDrop = true;
+            }
+        }
+        catch { }
+    }
+
+    private void CloseLuckyDrop()
+    {
+        showLuckyDrop = false;
+    }
+
+    private async Task SaveCouponCode()
+    {
+        if (luckyCoupon != null)
+        {
+            var saved = await LocalStorage.GetItemAsync<List<string>>("saved_coupons") ?? new List<string>();
+            if (!saved.Contains(luckyCoupon.Code))
+            {
+                saved.Add(luckyCoupon.Code);
+                await LocalStorage.SetItemAsync("saved_coupons", saved);
+                
+                // Ghi nhận vào DB Backend
+                var user = await AuthService.GetCurrentUserAsync();
+                if (user != null)
+                {
+                    await CouponService.ReceiveAsync(luckyCoupon.Id, user.Email);
+                }
+            }
+
+            isCopied = true;
+            StateHasChanged();
+            
+            await Task.Delay(2000);
+            showLuckyDrop = false; // Auto close limit
+        }
+    }
+
+    private void HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") ApplyFilters();
+    }
+
+    private void ToggleSort(string order)
+    {
+        tempSortOrder = tempSortOrder == order ? null : order;
+    }
+
+    private void ApplyFilters()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(tempSearch) ? null : tempSearch.Trim();
+        appliedCategory = string.IsNullOrWhiteSpace(tempCategory) ? null : tempCategory;
+        appliedMinPrice = minPrice;
+        appliedMaxPrice = maxPrice;
+        appliedInStockOnly = inStockOnly;
+        appliedSortOrder = tempSortOrder;
+        StateHasChanged();
+    }
+
+    private void ResetFilters()
+    {
+        tempSearch = "";
+        tempCategory = "";
+        minPrice = null;
+        maxPrice = null;
+        inStockOnly = false;
+        tempSortOrder = null;
+        appliedSearch = null;
+        appliedCategory = null;
+        appliedMinPrice = null;
+        appliedMaxPrice = null;
+        appliedInStockOnly = false;
+        appliedSortOrder = null;
+        StateHasChanged();
+    }
+
+    private string ProductListTitle
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(appliedCategory)) parts.Add(appliedCategory.ToUpper());
+            if (!string.IsNullOrEmpty(appliedSearch)) parts.Add($"TÌM KIẾM: \"{appliedSearch}\"");
+            return parts.Count > 0 ? string.Join(" - ", parts) : "THỰC ĐƠN HÔM NAY";
+        }
+    }
+}
+

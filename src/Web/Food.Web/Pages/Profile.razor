@@ -1,0 +1,374 @@
+@page "/profile"
+@using Food.Web.Models
+@using Food.Web.Services
+@inject IAuthService AuthService
+@inject IVietnamAddressService AddressService
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+<div class="profile-page">
+    <div class="container container-sm">
+        <div class="profile-card">
+            <div class="profile-header">
+                <h2>THÔNG TIN TÀI KHOẢN</h2>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="@updateModel" OnValidSubmit="HandleUpdate">
+                    <DataAnnotationsValidator />
+
+                    <div class="form-section">
+                        <div class="form-group mb-4">
+                            <label class="form-label">Tên đăng nhập</label>
+                            <input type="text" class="form-control readonly-input" value="@currentUser?.FullName" readonly />
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label class="form-label">Email</label>
+                            <input type="text" class="form-control readonly-input" value="@currentUser?.Email" readonly />
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label class="form-label">Số điện thoại</label>
+                            <InputText class="form-control" @bind-Value="updateModel.PhoneNumber" placeholder="Số điện thoại của bạn" />
+                            <ValidationMessage For="@(() => updateModel.PhoneNumber)" class="text-danger small mt-1" />
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label">Tỉnh / Thành phố</label>
+                                <select class="form-select" Value="@selectedProvince" @onchange="OnProvinceChanged">
+                                    <option value="">Tỉnh / Thành phố</option>
+                                    @foreach (var province in provinces)
+                                    {
+                                        <option value="@province" selected="@(selectedProvince == province)">@province</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Quận / Huyện</label>
+                                <select class="form-select" Value="@selectedDistrict" @onchange="OnDistrictChanged" disabled="@(string.IsNullOrEmpty(selectedProvince))">
+                                    <option value="">Quận / Huyện</option>
+                                    @foreach (var district in districtsOfProvince)
+                                    {
+                                        <option value="@district" selected="@(selectedDistrict == district)">@district</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Phường / Xã</label>
+                                <select class="form-select" @bind="selectedWard" disabled="@(string.IsNullOrEmpty(selectedDistrict))">
+                                    <option value="">Phường / Xã</option>
+                                    @foreach (var ward in wardsOfDistrict)
+                                    {
+                                        <option value="@ward" selected="@(selectedWard == ward)">@ward</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label class="form-label">Địa chỉ chi tiết</label>
+                            <input type="text" class="form-control" @bind-value="detailAddress" placeholder="Nhập chi tiết địa chỉ" />
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="form-section">
+                        <h3 class="section-title">THAY ĐỔI MẬT KHẨU</h3>
+                        <p class="text-muted mb-3" style="font-size: 0.85rem;">Để trống nếu không muốn thay đổi mật khẩu</p>
+
+                        <div class="form-group mb-4">
+                            <label class="form-label">Mật khẩu mới</label>
+                            <InputText type="password" class="form-control" @bind-Value="updateModel.NewPassword" placeholder="Nhập mật khẩu mới" />
+                            <ValidationMessage For="@(() => updateModel.NewPassword)" class="text-danger small mt-1" />
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label class="form-label">Xác nhận mật khẩu mới</label>
+                            <InputText type="password" class="form-control" @bind-Value="updateModel.ConfirmPassword" placeholder="Xác nhận mật khẩu" />
+                            <ValidationMessage For="@(() => updateModel.ConfirmPassword)" class="text-danger small mt-1" />
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mb-4">@errorMessage</div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success mb-4">@successMessage</div>
+                    }
+
+                    <div class="actions">
+                        <button type="submit" class="btn btn-save" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            }
+                            LƯU THAY ĐỔI
+                        </button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private UserInfo? currentUser;
+    private UpdateProfileModel updateModel = new();
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+    private string? successMessage;
+    private string selectedProvince = "";
+    private string selectedDistrict = "";
+    private string selectedWard = "";
+    private string detailAddress = "";
+
+    private List<string> provinces = new();
+    private List<string> districtsOfProvince = new();
+    private List<string> wardsOfDistrict = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AddressService.InitializeAsync();
+        provinces = AddressService.GetProvinces();
+        await LoadUserData();
+    }
+
+    private async Task LoadUserData()
+    {
+        isLoading = true;
+        currentUser = await AuthService.GetCurrentUserAsync();
+        
+        if (currentUser == null)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/profile");
+            return;
+        }
+
+        updateModel.PhoneNumber = currentUser.PhoneNumber;
+        
+        // Simple parsing of existing address if possible
+        if (!string.IsNullOrEmpty(currentUser.Address))
+        {
+            var parts = currentUser.Address.Split(", ").Select(p => p.Trim()).ToList();
+            if (parts.Count >= 4)
+            {
+                detailAddress = parts[0];
+                selectedWard = parts[1];
+                selectedDistrict = parts[2];
+                selectedProvince = parts[3];
+                
+                UpdateDistricts();
+                UpdateWards();
+            }
+            else
+            {
+                detailAddress = currentUser.Address;
+            }
+        }
+        
+        isLoading = false;
+    }
+
+    private void OnProvinceChanged(ChangeEventArgs e)
+    {
+        selectedProvince = e.Value?.ToString() ?? "";
+        selectedDistrict = "";
+        selectedWard = "";
+        UpdateDistricts();
+    }
+
+    private void OnDistrictChanged(ChangeEventArgs e)
+    {
+        selectedDistrict = e.Value?.ToString() ?? "";
+        selectedWard = "";
+        UpdateWards();
+    }
+
+    private void UpdateDistricts()
+    {
+        districtsOfProvince = AddressService.GetDistricts(selectedProvince);
+        wardsOfDistrict = new List<string>();
+    }
+
+    private void UpdateWards()
+    {
+        wardsOfDistrict = AddressService.GetWards(selectedDistrict);
+    }
+
+    private async Task HandleUpdate()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Consolidate address
+            if (!string.IsNullOrEmpty(selectedProvince))
+            {
+                updateModel.Address = $"{detailAddress}, {selectedWard}, {selectedDistrict}, {selectedProvince}";
+            }
+            else
+            {
+                updateModel.Address = detailAddress;
+            }
+
+            var result = await AuthService.UpdateProfileAsync(updateModel);
+            if (result)
+            {
+                successMessage = "Cập nhật thông tin thành công!";
+                updateModel.NewPassword = null;
+                updateModel.ConfirmPassword = null;
+                
+                _ = Task.Delay(2000).ContinueWith(_ => 
+                {
+                    successMessage = null;
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}
+
+<style>
+    .profile-page {
+        padding: 60px 0;
+        background-color: #f8f9fa;
+        min-height: calc(100vh - 60px);
+    }
+
+    .container-sm {
+        max-width: 700px;
+    }
+
+    .profile-card {
+        background: white;
+        padding: 40px;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+
+    .profile-header h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #2F4858;
+        text-align: center;
+        margin-bottom: 35px;
+        letter-spacing: 1px;
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #2F4858;
+        margin-bottom: 10px;
+    }
+
+    .form-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 8px;
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        padding: 12px 16px;
+        border: 1.5px solid #eee;
+        transition: all 0.3s ease;
+        font-size: 15px;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #2F4858;
+        box-shadow: 0 0 0 3px rgba(47, 72, 88, 0.1);
+    }
+
+    .readonly-input {
+        background-color: #f9f9f9 !important;
+        cursor: not-allowed;
+        color: #888;
+        border-style: dashed;
+    }
+
+    .divider {
+        height: 1.5px;
+        background: #f0f0f0;
+        margin: 30px 0;
+    }
+
+    .btn-save {
+        width: 100%;
+        background-color: #2F4858;
+        color: white;
+        padding: 14px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: 1px;
+        border: none;
+        transition: background 0.3s;
+        margin-top: 10px;
+    }
+
+    .btn-save:hover:not(:disabled) {
+        background-color: #3e5e73;
+        transform: translateY(-1px);
+    }
+
+    .btn-save:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    .alert {
+        border-radius: 8px;
+        border: none;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .alert-success {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .alert-danger {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+
+    @@media (max-width: 768px) {
+        .profile-card {
+            padding: 20px;
+        }
+        
+        .row > div {
+            margin-bottom: 15px;
+        }
+    }
+</style>

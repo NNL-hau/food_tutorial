@@ -1,0 +1,1469 @@
+@page "/product/{Id:guid}"
+@using Food.Web.Models
+@using Food.Web.Services
+@using Food.Web.Helpers
+@inject IProductApiService ProductService
+@inject IBasketService BasketService
+@inject IReviewApiService ReviewService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="product-details-page">
+    <div class="container">
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Đang tải thông tin món ăn...</p>
+            </div>
+        }
+        else if (product == null)
+        {
+            <div class="error-state">
+                <h2>Không tìm thấy món ăn này</h2>
+                <button class="btn-back" @onclick="GoBack">Quay lại thực đơn</button>
+            </div>
+        }
+        else
+        {
+            <div class="breadcrumb">
+                <a @onclick="GoBack" class="back-link"><i class="fa-solid fa-arrow-left"></i> Quay lại</a>
+                <span class="sep">/</span>
+                <span>@product.Name</span>
+            </div>
+
+            <div class="details-grid">
+                <div class="image-gallery">
+                    <div class="main-banner">
+                        <img src="@(productImages.Any() ? productImages[currentImageIndex] : "/images/placeholder-product.jpg")" alt="@product.Name" class="active-banner-img" />
+                        
+                        @if (productImages.Count > 1)
+                        {
+                            <button class="nav-btn prev" @onclick="PrevImage"><i class="fa-solid fa-chevron-left"></i></button>
+                            <button class="nav-btn next" @onclick="NextImage"><i class="fa-solid fa-chevron-right"></i></button>
+                            
+                            <div class="banner-dots">
+                                @for (int i = 0; i < productImages.Count; i++)
+                                {
+                                    int index = i;
+                                    <span class="dot @(currentImageIndex == index ? "active" : "")" @onclick="() => currentImageIndex = index"></span>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (productImages.Count > 1)
+                    {
+                        <div class="thumbnail-list">
+                            @foreach (var (img, index) in productImages.Select((value, i) => (value, i)))
+                            {
+                                <div class="thumb-item @(currentImageIndex == index ? "active" : "")" @onclick="() => currentImageIndex = index">
+                                    <img src="@img" alt="thumbnail @index" />
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="product-info-panel">
+                    <h1 class="p-name">@product.Name</h1>
+                    <div class="p-price">@product.Price.ToString("N0") đ</div>
+
+                    <div class="p-options">
+                        @if (availableColors.Any())
+                        {
+                            <div class="option-group">
+                                <label>Tùy chọn khác</label>
+                                <div class="chips">
+                                    @foreach (var color in availableColors)
+                                    {
+                                        <button class="chip @(selectedColor == color ? "active" : "")" 
+                                                @onclick="() => selectedColor = color">
+                                            @color
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (availableSizes.Any())
+                        {
+                            <div class="option-group">
+                                <label>Kích cỡ / Phần ăn <span class="required">*</span></label>
+                                <div class="chips">
+                                    @foreach (var size in availableSizes)
+                                    {
+                                        <div class="chip-wrapper">
+                                            <button class="chip @(selectedSize == size ? "active" : "")" 
+                                                    @onclick="() => SelectSize(size)">
+                                                @size
+                                            </button>
+                                            <div class="size-tooltip">@GetSizeRecommendation(size)</div>
+                                        </div>
+                                    }
+                                </div>
+                                @if (showSizeError && string.IsNullOrEmpty(selectedSize))
+                                {
+                                    <div class="field-error">Vui lòng chọn phần ăn!</div>
+                                }
+                                <div class="size-guide-accordion">
+                                    <div class="accordion-header" @onclick="() => isSizeGuideOpen = !isSizeGuideOpen">
+                                        <span>Thành phần & Dinh dưỡng</span>
+                                        <i class="fa-solid fa-chevron-@(isSizeGuideOpen ? "up" : "down")"></i>
+                                    </div>
+                                    @if (isSizeGuideOpen)
+                                    {
+                                        <div class="accordion-content">
+                                            <p class="small text-muted mb-3">Thông tin dinh dưỡng ước tính cho mỗi khẩu phần tiêu chuẩn:</p>
+                                            <table class="size-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Thành phần</th>
+                                                        <th>Định lượng</th>
+                                                        <th>Calo</th>
+                                                        <th>Ghi chú</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td>Chất đạm</td>
+                                                        <td>25g - 35g</td>
+                                                        <td>150 kcal</td>
+                                                        <td>Từ thịt tươi</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Chất béo</td>
+                                                        <td>10g - 15g</td>
+                                                        <td>90 kcal</td>
+                                                        <td>Ít dầu mỡ</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Tinh bột</td>
+                                                        <td>45g - 60g</td>
+                                                        <td>200 kcal</td>
+                                                        <td>Gạo/Bún sạch</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Chất xơ</td>
+                                                        <td>5g - 8g</td>
+                                                        <td>30 kcal</td>
+                                                        <td>Rau củ tươi</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="p-meta">
+                        <div class="meta-row">
+                            <span class="label">Trạng thái:</span>
+                            <span class="value @(product.StockQuantity > 0 ? "in-stock" : "out-of-stock")">
+                                @(product.StockQuantity > 0 ? "Còn hàng" : "Hết hàng")
+                            </span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">Số lượng còn:</span>
+                            <span class="value">@product.StockQuantity</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">Đã bán:</span>
+                            <span class="value">@product.SoldQuantity</span>
+                        </div>
+                    </div>
+
+
+                    <div class="p-description">
+                        <h3>Giới thiệu món ăn</h3>
+                        <p>@(string.IsNullOrEmpty(product.Description) ? "Món ăn hương vị truyền thống, chế biến từ nguyên liệu tươi sạch mỗi ngày." : product.Description)</p>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn-add-to-cart" @onclick="HandleAddToCart" disabled="@(product.StockQuantity == 0 || isAdding)">
+                            @if (isAdding)
+                            {
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <span>Đang thêm...</span>
+                            }
+                            else
+                            {
+                                <i class="fa-solid fa-cart-plus"></i>
+                                <span>THÊM VÀO GIỎ ĐẶT MÓN</span>
+                            }
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(message) && message != "AUTH_REQUIRED")
+                    {
+                        <div class="error-modal-overlay" @onclick="() => message = null">
+                            <div class="error-modal-content animate__animated animate__zoomIn" @onclick:stopPropagation>
+                                <div class="error-modal-header">
+                                    <i class="fa-solid @(isError ? "fa-circle-exclamation text-danger" : "fa-circle-check text-success")"></i>
+                                    <span>Thông báo</span>
+                                    <button class="btn-close-modal" @onclick="() => message = null">✕</button>
+                                </div>
+                                <div class="error-modal-body text-center">
+                                    <p>@message</p>
+                                </div>
+                                <div class="error-modal-footer">
+                                    <button class="btn btn-dark w-100" @onclick="() => message = null">Đóng</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showLoginModal)
+                    {
+                        <div class="auth-modal-overlay" @onclick="() => showLoginModal = false">
+                            <div class="auth-modal" @onclick:stopPropagation>
+                                <button class="close-modal" @onclick="() => showLoginModal = false">✕</button>
+                                <div class="auth-modal-content">
+                                    <div class="auth-icon">
+                                        <i class="fa-solid fa-user-lock"></i>
+                                    </div>
+                                    <h2>Yêu cầu đăng nhập</h2>
+                                    <p>Vui lòng đăng nhập để có thể thêm món ăn này vào giỏ hàng của bạn.</p>
+                                    <div class="auth-modal-actions">
+                                        <button class="btn-primary-auth" @onclick='() => Navigation.NavigateTo("/login")'>Đăng nhập ngay</button>
+                                        <button class="btn-secondary-auth" @onclick="() => showLoginModal = false">Để sau</button>
+                                    </div>
+                                    <div class="auth-footer">
+                                        Chưa có tài khoản? <a href="/register">Đăng ký tại đây</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="extra-sections">
+                <div class="reviews-section">
+                    <div class="section-header">
+                        <h2>Đánh giá từ thực khách (@reviews.Count)</h2>
+                        <div class="avg-rating">
+                            @if (reviews.Any())
+                            {
+                                <div class="stars">
+                                    @for (int i = 1; i <= 5; i++)
+                                    {
+                                        <i class="fa-solid fa-star @(i <= Math.Round(reviews.Average(r => r.Rating)) ? "filled" : "")"></i>
+                                    }
+                                </div>
+                                <span class="rating-val">@reviews.Average(r => r.Rating).ToString("0.0")/5</span>
+                            }
+                        </div>
+                    </div>
+
+                    @* ===== REVIEW FORM ===== *@
+                    @if (isLoggedIn)
+                    {
+                        <div class="review-form-card">
+                            <h3><i class="fa-solid fa-pen-to-square me-2"></i>Chia sẻ cảm nhận của bạn</h3>
+                            <div class="star-picker">
+                                <span>Hương vị món ăn:</span>
+                                <div class="stars-input">
+                                    @for (int i = 5; i >= 1; i--)
+                                    {
+                                        int starVal = i;
+                                        <span class="star-opt @(newReviewRating >= starVal ? "selected" : "")" 
+                                              @onclick="() => newReviewRating = starVal"
+                                              @onmouseover="() => hoverRating = starVal"
+                                              @onmouseout="() => hoverRating = 0">
+                                            <i class="fa-solid fa-star"></i>
+                                        </span>
+                                    }
+                                </div>
+                                @if (newReviewRating > 0)
+                                {
+                                    <span class="star-label">@GetRatingLabel(newReviewRating)</span>
+                                }
+                            </div>
+                            <textarea class="review-textarea" 
+                                      @bind="newReviewComment"
+                                      placeholder="Món ăn có hợp khẩu vị bạn không? Hãy chia sẻ nhé..."
+                                      rows="4"
+                                      maxlength="1000"></textarea>
+                            @if (!string.IsNullOrEmpty(reviewError))
+                            {
+                                <div class="review-error">
+                                    <i class="fa-solid fa-triangle-exclamation me-1"></i>@reviewError
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(reviewSuccess))
+                            {
+                                <div class="review-success">
+                                    <i class="fa-solid fa-circle-check me-1"></i>@reviewSuccess
+                                </div>
+                            }
+                            <div class="review-form-actions">
+                                <span class="char-count">@(newReviewComment?.Length ?? 0)/1000 ký tự</span>
+                                <button class="btn-submit-review" @onclick="SubmitReview" disabled="@isSubmittingReview">
+                                    @if (isSubmittingReview)
+                                    {
+                                        <i class="fa-solid fa-spinner fa-spin"></i>
+                                        <span>Đang gửi...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="fa-solid fa-paper-plane"></i>
+                                        <span>Gửi đánh giá</span>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="login-to-review">
+                            <i class="fa-solid fa-lock"></i>
+                            <span><a href="/login">Đăng nhập</a> để viết đánh giá của bạn</span>
+                        </div>
+                    }
+
+                    @* ===== REVIEWS LIST ===== *@
+                    @if (!reviews.Any())
+                    {
+                        <p class="no-reviews">Chưa có đánh giá nào cho món ăn này.</p>
+                    }
+                    else
+                    {
+                        <div class="reviews-list">
+                            @foreach (var review in reviews.OrderByDescending(r => r.CreatedAt))
+                            {
+                                <div class="review-item">
+                                    <div class="review-avatar">
+                                        @review.UserName.Substring(0, 1).ToUpper()
+                                    </div>
+                                    <div class="review-body">
+                                        <div class="review-meta">
+                                            <span class="reviewer">@review.UserName</span>
+                                            <span class="review-date">@review.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                        </div>
+                                        <div class="review-rating">
+                                            @for (int i = 1; i <= 5; i++)
+                                            {
+                                                <i class="fa-solid fa-star @(i <= review.Rating ? "filled" : "")"></i>
+                                            }
+                                            <span class="rating-text">@GetRatingLabel(review.Rating)</span>
+                                        </div>
+                                        <p class="review-comment">@review.Comment</p>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="related-products-section">
+                    <div class="section-header">
+                        <h2>Món ăn tương tự</h2>
+                    </div>
+                    @if (relatedProducts.Any())
+                    {
+                        <div class="products-grid">
+                            @foreach (var rp in relatedProducts)
+                            {
+                                <div class="p-card" @onclick="() => NavigateToProduct(rp.Id)">
+                                    <div class="p-image">
+                                        <img src="@ProductHelpers.GetFirstImageUrl(rp.ImageUrl)" alt="@rp.Name" />
+                                    </div>
+                                    <div class="p-details">
+                                        <h3 class="rp-name">@rp.Name</h3>
+                                        <div class="rp-price">@rp.Price.ToString("N0") đ</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p>Không có món ăn tương tự.</p>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    
+    private ProductDto? product;
+    private List<string> availableColors = new();
+    private List<string> availableSizes = new();
+    private List<ReviewDto> reviews = new();
+    private List<ProductDto> relatedProducts = new();
+    private List<string> productImages = new();
+    private int currentImageIndex = 0;
+    private string? selectedColor;
+    private string? selectedSize;
+    private bool isLoading = true;
+    private bool isAdding = false;
+    private string? message;
+    private bool isError = false;
+    private bool showSizeError = false;
+    private bool isSizeGuideOpen = false;
+    private bool showLoginModal = false;
+
+    // Review state
+    private bool isLoggedIn = false;
+    private int newReviewRating = 0;
+    private int hoverRating = 0;
+    private string? newReviewComment;
+    private string? reviewError;
+    private string? reviewSuccess;
+    private bool isSubmittingReview = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoggedIn = await AuthService.IsAuthenticatedAsync();
+        await LoadProduct();
+    }
+
+    private async Task LoadProduct()
+    {
+        isLoading = true;
+        message = null;
+        selectedSize = null;
+        showSizeError = false;
+        try
+        {
+            product = await ProductService.GetProductAsync(Id);
+            if (product != null)
+            {
+                if (string.IsNullOrEmpty(product.Sizes))
+                {
+                    product = product with { Sizes = "S, M, L, XL, XXL" };
+                }
+
+                if (string.IsNullOrEmpty(product.Colors))
+                {
+                    product = product with { Colors = "Vàng, Trắng, Đen, Đỏ, Xanh" };
+                }
+                
+                availableColors = (product.Colors ?? "").Split(',').Select(c => c.Trim()).Where(c => !string.IsNullOrEmpty(c)).ToList();
+                availableSizes = product.Sizes.Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToList();
+
+                // Prepare images for carousel
+                productImages = (product.ImageUrl ?? "").Split(',').Select(i => i.Trim()).Where(i => !string.IsNullOrEmpty(i)).ToList();
+                if (!productImages.Any()) productImages.Add("/images/placeholder-product.jpg");
+                
+                // For demonstration purposes, if only one image, let's add placeholders to show banner functionality
+                if (productImages.Count == 1 && !string.IsNullOrEmpty(product.ImageUrl))
+                {
+                    // Add some dummy variant images to simulate a gallery if it's a real image
+                    if (!product.ImageUrl.Contains("placeholder"))
+                    {
+                         productImages.Add(product.ImageUrl); // Repeat same for demo
+                         productImages.Add(product.ImageUrl);
+                    }
+                }
+                
+                currentImageIndex = 0;
+                selectedColor = availableColors.FirstOrDefault();
+                // selectedSize remains null to force selection
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading product: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+        
+        // Load secondary data after main product data is shown
+        _ = LoadSecondaryDataAsync();
+    }
+
+    private async Task LoadSecondaryDataAsync()
+    {
+        try
+        {
+            var reviewTask = ReviewService.GetReviewsByProductIdAsync(Id);
+            var relatedTask = ProductService.GetRelatedProductsAsync(Id);
+            await Task.WhenAll(reviewTask, relatedTask);
+            reviews = await reviewTask;
+            relatedProducts = await relatedTask;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading secondary data: {ex.Message}");
+        }
+    }
+
+    private async Task HandleAddToCart()
+    {
+        if (product == null) return;
+        
+        message = null;
+        isError = false;
+
+        if (string.IsNullOrEmpty(selectedSize))
+        {
+            showSizeError = true;
+            message = "Vui lòng chọn kích cỡ!";
+            isError = true;
+            return;
+        }
+
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            showLoginModal = true;
+            return;
+        }
+
+        isAdding = true;
+        try
+        {
+            // We need to pass the selected options. 
+            // Since AddToBasketAsync only takes ProductDto, we might need a workaround 
+            // or update the service. But for now, we'll set the options on the DTO or use a new method if we had one.
+            // Actually, BasketService.AddToBasketAsync uses default options. 
+            // Let's use UpdateQuantityAsync after adding if needed, or update AddToBasketAsync.
+            
+            // For now, let's update a temporary version of the product with selected options 
+            // if our service supports it, but it doesn't. 
+            // Let's call AddToBasket and then immediately update options if they differ from default.
+            
+            await BasketService.AddToBasketAsync(product, selectedColor, selectedSize);
+            
+            message = "Đã thêm vào giỏ hàng thành công!";
+        }
+        catch (Exception ex)
+        {
+            message = $"Lỗi: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isAdding = false;
+        }
+    }
+
+    private void SelectSize(string size)
+    {
+        selectedSize = size;
+        showSizeError = false;
+        if (message == "Vui lòng chọn kích cỡ!") message = null;
+    }
+
+    private async Task SubmitReview()
+    {
+        reviewError = null;
+        reviewSuccess = null;
+
+        if (newReviewRating == 0)
+        {
+            reviewError = "Vui lòng chọn số sao đánh giá.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newReviewComment) || newReviewComment.Trim().Length < 5)
+        {
+            reviewError = "Vui lòng nhập nhận xét ít nhất 5 ký tự.";
+            return;
+        }
+
+        isSubmittingReview = true;
+        try
+        {
+            var userName = await AuthService.GetUserNameAsync();
+            var review = new ReviewDto(
+                Guid.NewGuid(),
+                Id,
+                userName ?? "Khách hàng",
+                newReviewRating,
+                newReviewComment.Trim(),
+                DateTime.Now,
+                false
+            );
+
+            var success = await ReviewService.CreateReviewAsync(review);
+            if (success)
+            {
+                reviewSuccess = "Cảm ơn bạn đã đánh giá!";
+                newReviewRating = 0;
+                newReviewComment = null;
+                // Reload reviews to reflect any approved ones
+                reviews = await ReviewService.GetReviewsByProductIdAsync(Id);
+            }
+            else
+            {
+                reviewError = "Không thể gửi đánh giá. Vui lòng thử lại sau.";
+            }
+        }
+        catch
+        {
+            reviewError = "Đã xảy ra lỗi. Vui lòng thử lại sau.";
+        }
+        finally
+        {
+            isSubmittingReview = false;
+        }
+    }
+
+    private string GetRatingLabel(int rating) => rating switch
+    {
+        1 => "Rất tệ",
+        2 => "Tệ",
+        3 => "Bình thường",
+        4 => "Tốt",
+        5 => "Xuất sắc",
+        _ => ""
+    };
+
+    private void NextImage() => currentImageIndex = (currentImageIndex + 1) % productImages.Count;
+    private void PrevImage() => currentImageIndex = (currentImageIndex - 1 + productImages.Count) % productImages.Count;
+
+    private string GetSizeRecommendation(string size)
+    {
+        return size.ToUpper() switch
+        {
+            "S" => "Phần nhỏ: Phù hợp cho 1 trẻ em hoặc ăn nhẹ",
+            "M" => "Phần vừa: Khẩu phần tiêu chuẩn cho 1 người lớn",
+            "L" => "Phần lớn: Cho người có sức ăn tốt hoặc dùng chung",
+            "XL" => "Tô khổng lồ: Thử thách sức ăn hoặc cho 2 người",
+            "XXL" => "Phần gia đình: Phù hợp cho nhóm 3-4 người",
+            _ => "Vui lòng liên hệ nhân viên để được tư vấn"
+        };
+    }
+
+    private void NavigateToProduct(Guid id) => Navigation.NavigateTo($"/product/{id}");
+    private void GoBack() => Navigation.NavigateTo("/");
+}
+
+<style>
+    .product-details-page {
+        padding: 40px 0;
+        background: #f8f9fa;
+        min-height: 80vh;
+    }
+    
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+
+    .breadcrumb {
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #666;
+        font-size: 14px;
+    }
+
+    .back-link {
+        cursor: pointer;
+        color: #2F4858;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+
+    .details-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    }
+
+    .image-gallery {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .main-banner {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 4/5;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        background: #eee;
+    }
+
+    .active-banner-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: opacity 0.4s ease-in-out;
+    }
+
+    .nav-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255,255,255,0.8);
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        z-index: 10;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .nav-btn:hover {
+        background: white;
+        transform: translateY(-50%) scale(1.1);
+    }
+
+    .nav-btn.prev { left: 15px; }
+    .nav-btn.next { right: 15px; }
+
+    .banner-dots {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.5);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .dot.active {
+        background: white;
+        width: 20px;
+        border-radius: 4px;
+    }
+
+    .thumbnail-list {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        padding-bottom: 5px;
+    }
+
+    .thumb-item {
+        width: 80px;
+        height: 80px;
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+
+    .thumb-item.active {
+        border-color: #d32f2f;
+    }
+
+    .thumb-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .p-name {
+        font-family: 'Outfit', sans-serif;
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 8px;
+        letter-spacing: -0.5px;
+        line-height: 1.2;
+    }
+
+    .p-price {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #d32f2f;
+        margin-bottom: 30px;
+        letter-spacing: -1px;
+    }
+
+    .option-group {
+        margin-bottom: 25px;
+    }
+
+    .option-group label {
+        display: block;
+        font-weight: 700;
+        font-size: 14px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+        color: #666;
+    }
+
+    .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .chip {
+        padding: 8px 20px;
+        border: 2.5px solid #eee;
+        background: white;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .chip:hover {
+        border-color: #2F4858;
+    }
+
+    .chip.active {
+        background: #2F4858;
+        color: white;
+        border-color: #2F4858;
+    }
+
+    .chip-wrapper {
+        position: relative;
+    }
+
+    .size-tooltip {
+        position: absolute;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%) translateY(10px);
+        background: #1a1a1a;
+        color: white;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+        visibility: hidden;
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 100;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        pointer-events: none;
+    }
+
+    .size-tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -6px;
+        border-width: 6px;
+        border-style: solid;
+        border-color: #1a1a1a transparent transparent transparent;
+    }
+
+    .chip-wrapper:hover .size-tooltip {
+        visibility: visible;
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    /* Size Guide Accordion Styles */
+    .size-guide-accordion {
+        margin-top: 20px;
+        border: 1px solid #eee;
+        border-radius: 12px;
+        overflow: hidden;
+        background: white;
+    }
+
+    .accordion-header {
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 14px;
+        color: #333;
+        transition: background 0.2s;
+        border-bottom: 1px solid transparent;
+    }
+
+    .accordion-header:hover {
+        background: #f9f9f9;
+    }
+
+    .accordion-header i {
+        font-size: 12px;
+        color: #999;
+    }
+
+    .accordion-content {
+        padding: 15px 20px 20px;
+        border-top: 1px solid #eee;
+    }
+
+    .size-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        color: #555;
+    }
+
+    .size-table th {
+        background: #f8f9fa;
+        padding: 12px 10px;
+        text-align: center;
+        font-weight: 700;
+        color: #1a1a1a;
+        border-bottom: 1px solid #eee;
+    }
+
+    .size-table td {
+        padding: 12px 10px;
+        text-align: center;
+        border-bottom: 1px solid #f1f1f1;
+    }
+
+    .size-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .size-table tr.highlight td {
+        color: #d32f2f;
+        font-weight: 700;
+        background: #fff5f5;
+    }
+
+    .size-table td:first-child {
+        font-weight: 700;
+        color: #1a1a1a;
+        background: #fafafa;
+    }
+
+    .size-table tr.highlight td:first-child {
+        background: #fff5f5;
+        color: #d32f2f;
+    }
+
+    .p-meta {
+        margin-bottom: 30px;
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .meta-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .meta-row .label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        font-weight: 700;
+    }
+
+    .meta-row .value {
+        font-weight: 700;
+        font-size: 18px;
+    }
+
+    .value.in-stock { color: #2e7d32; }
+    .value.out-of-stock { color: #d32f2f; }
+
+    .p-description h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 24px;
+        color: #1a1a1a;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'Outfit', sans-serif;
+    }
+
+    .p-description h3::before {
+        content: "";
+        width: 4px;
+        height: 18px;
+        background: #d32f2f;
+        border-radius: 2px;
+        display: inline-block;
+    }
+
+    .p-description p {
+        line-height: 1.8;
+        color: #555;
+    }
+
+    .actions {
+        margin-top: 40px;
+    }
+
+    .btn-add-to-cart {
+        width: 100%;
+        padding: 18px;
+        background: #1a1a1a;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    .btn-add-to-cart:hover:not(:disabled) {
+        background: #d32f2f;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(211,47,47,0.3);
+    }
+
+    .btn-add-to-cart:disabled {
+        background: #ddd;
+        color: #999;
+        cursor: not-allowed;
+    }
+
+        padding: 12px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+    }
+
+    .status-message.success { background: #e8f5e9; color: #2e7d32; }
+    .status-message.error { background: #ffebee; color: #d32f2f; }
+
+    .required { color: #d32f2f; }
+    .field-error { color: #d32f2f; font-size: 13px; font-weight: 600; margin-top: 8px; }
+
+    .extra-sections {
+        margin-top: 60px;
+        display: flex;
+        flex-direction: column;
+        gap: 60px;
+    }
+
+    .section-header {
+        margin-bottom: 30px;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .section-header h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1a1a;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .section-header h2::before {
+        content: "";
+        width: 4px;
+        height: 20px;
+        background: #d32f2f;
+        border-radius: 2px;
+    }
+
+    .avg-rating {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .stars { color: #ddd; }
+    .stars i.filled { color: #ffc107; }
+    .rating-val { font-weight: 700; color: #666; }
+
+    .reviews-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .review-item {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+
+    .review-meta {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .reviewer { font-weight: 800; color: #2F4858; }
+    .review-date { font-size: 12px; color: #999; }
+    .review-rating { margin-bottom: 12px; color: #ffc107; font-size: 12px; }
+    .review-comment { color: #555; line-height: 1.6; }
+    .no-reviews { color: #999; text-align: center; padding: 40px; }
+
+    /* ============= REVIEW FORM ============= */
+    .review-form-card {
+        background: linear-gradient(135deg, #f8f9ff, #fff);
+        border: 1px solid #e8edff;
+        border-radius: 20px;
+        padding: 28px;
+        margin-bottom: 32px;
+        box-shadow: 0 4px 20px rgba(79, 70, 229, 0.07);
+    }
+
+    .review-form-card h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1e1b4b;
+        margin-bottom: 20px;
+    }
+
+    .star-picker {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+    }
+
+    .star-picker > span:first-child {
+        font-weight: 600;
+        color: #475569;
+        font-size: 0.9rem;
+    }
+
+    .stars-input {
+        display: flex;
+        flex-direction: row-reverse;
+        gap: 4px;
+    }
+
+    .star-opt {
+        font-size: 1.8rem;
+        color: #d1d5db;
+        cursor: pointer;
+        transition: color 0.15s, transform 0.15s;
+        line-height: 1;
+    }
+
+    .stars-input:hover .star-opt { color: #f59e0b; }
+    .star-opt.selected { color: #f59e0b; }
+    .star-opt:hover { transform: scale(1.2); }
+
+    .star-label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #f59e0b;
+        background: #fffbeb;
+        padding: 4px 12px;
+        border-radius: 20px;
+        border: 1px solid #fde68a;
+    }
+
+    .review-textarea {
+        width: 100%;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 14px 16px;
+        font-size: 0.95rem;
+        color: #334155;
+        background: white;
+        resize: vertical;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        font-family: inherit;
+        line-height: 1.6;
+        box-sizing: border-box;
+    }
+
+    .review-textarea:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .review-error {
+        margin-top: 10px;
+        color: #dc2626;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .review-success {
+        margin-top: 10px;
+        color: #16a34a;
+        font-size: 0.85rem;
+        font-weight: 600;
+        background: #dcfce7;
+        padding: 10px 14px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .review-form-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 14px;
+        gap: 12px;
+    }
+
+    .char-count { font-size: 0.78rem; color: #94a3b8; }
+
+    .btn-submit-review {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        color: white;
+        border: none;
+        padding: 11px 24px;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-submit-review:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-submit-review:disabled { opacity: 0.7; cursor: not-allowed; }
+
+    .login-to-review {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #f8fafc;
+        border: 1.5px dashed #cbd5e1;
+        border-radius: 16px;
+        padding: 18px 24px;
+        margin-bottom: 24px;
+        color: #64748b;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .login-to-review i { color: #94a3b8; font-size: 1.1rem; }
+    .login-to-review a { color: #4f46e5; font-weight: 700; text-decoration: none; }
+    .login-to-review a:hover { text-decoration: underline; }
+
+    /* ============= REVIEW CARDS ============= */
+    .reviews-list { display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+
+    .review-item {
+        display: flex;
+        gap: 16px;
+        background: #fafbff;
+        border: 1px solid #f1f5f9;
+        border-radius: 16px;
+        padding: 20px;
+        transition: box-shadow 0.2s;
+    }
+
+    .review-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+
+    .review-avatar {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #4f46e5, #818cf8);
+        color: white;
+        font-size: 1.1rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .review-body { flex: 1; }
+
+    .review-rating .fa-star { font-size: 0.9rem; color: #d1d5db; }
+    .review-rating .fa-star.filled { color: #f59e0b; }
+    .rating-text { font-size: 0.78rem; font-weight: 700; color: #f59e0b; margin-left: 6px; }
+
+    .products-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 25px;
+    }
+
+    .p-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        cursor: pointer;
+        transition: transform 0.3s;
+    }
+
+    .p-card:hover { transform: translateY(-5px); }
+    .p-image img { width: 100%; height: 200px; object-fit: cover; }
+    .p-details { padding: 15px; }
+    .rp-name { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #333; }
+    .rp-price { font-weight: 800; color: #d32f2f; }
+
+    @@media (max-width: 900px) {
+        .details-grid { grid-template-columns: 1fr; padding: 20px; }
+        .products-grid { grid-template-columns: 1fr 1fr; }
+    }
+    /* Auth Modal Styles */
+    .auth-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+
+    .auth-modal {
+        background: white;
+        width: 90%;
+        max-width: 400px;
+        border-radius: 20px;
+        padding: 40px 30px;
+        position: relative;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+        animation: modalScaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @@keyframes modalScaleUp {
+        from { transform: scale(0.8); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+
+    .close-modal {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: #999;
+        cursor: pointer;
+        padding: 5px;
+    }
+
+    .auth-icon {
+        width: 70px;
+        height: 70px;
+        background: #fff5f5;
+        color: #d32f2f;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        margin: 0 auto 20px;
+    }
+
+    .auth-modal h2 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 12px;
+    }
+
+    .auth-modal p {
+        color: #666;
+        font-size: 15px;
+        line-height: 1.6;
+        margin-bottom: 25px;
+    }
+
+    .auth-modal-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .btn-primary-auth {
+        background: #d32f2f;
+        color: white;
+        border: none;
+        padding: 12px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary-auth:hover {
+        background: #b71c1c;
+        transform: translateY(-2px);
+    }
+
+    .btn-secondary-auth {
+        background: #f8f9fa;
+        color: #666;
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+    }
+
+    .auth-footer {
+        margin-top: 20px;
+        font-size: 14px;
+        color: #777;
+    }
+
+    .auth-footer a {
+        color: #d32f2f;
+        font-weight: 600;
+        text-decoration: none;
+    }
+</style>

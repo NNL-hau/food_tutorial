@@ -1,0 +1,468 @@
+@page "/order-tracking/{OrderId:guid}"
+@inherits AuthorizedPageBase
+@inject IOrderApiService OrderService
+@inject NavigationManager NavigationManager
+@using Food.Web.Models
+
+<div class="tracking-page">
+    @if (isLoading)
+    {
+        <div class="loading-overlay">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-3 font-weight-bold">Đang tải thông tin đơn hàng...</p>
+        </div>
+    }
+    else if (order == null)
+    {
+        <div class="error-container">
+            <h3>Không tìm thấy đơn hàng</h3>
+            <button class="btn btn-primary mt-3" @onclick="GoBack">Quay lại</button>
+        </div>
+    }
+    else
+    {
+        <!-- Map Background Mockup -->
+        <div class="map-container">
+            <button class="back-btn shadow" @onclick="GoBack">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            
+            <div class="map-overlay"></div>
+            
+            <div class="map-pattern"></div>
+            
+            <!-- Map Markers -->
+            <div class="marker start-marker shadow">
+                <i class="fa-solid fa-store"></i>
+            </div>
+            
+            <!-- Path SVG mockup -->
+            <svg class="route-svg" viewBox="0 0 200 200" preserveAspectRatio="none">
+                <path d="M 50 150 C 70 120, 130 140, 150 50" fill="transparent" stroke="#ff4757" stroke-width="4" stroke-dasharray="8 4" class="animated-route" />
+            </svg>
+            
+            <div class="marker end-marker shadow">
+                <div class="pulse-ring"></div>
+                <i class="fa-solid fa-location-dot"></i>
+            </div>
+
+            <div class="estimated-time shadow-lg">
+                <div class="text-muted small fw-bold">Estimated Time</div>
+                <div class="time-value">5-10 min</div>
+            </div>
+        </div>
+
+        <!-- Bottom Sheet -->
+        <div class="bottom-sheet shadow-lg">
+            
+            <div class="sheet-handle"></div>
+
+            <!-- Driver Info -->
+            <div class="driver-info">
+                <div class="d-flex align-items-center">
+                    <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" alt="Driver" class="driver-avatar shadow-sm" />
+                    <div class="ms-3 flex-grow-1">
+                        <div class="text-muted small">Begin delivery by</div>
+                        <h5 class="mb-0 fw-bold">David Williamson</h5>
+                    </div>
+                    <div class="driver-rating text-end">
+                        <div class="star"><i class="fa-solid fa-star"></i> 4.8</div>
+                        <div class="text-muted small">Rating</div>
+                    </div>
+                </div>
+                
+                <div class="contact-actions mt-4">
+                    <button class="btn-message flex-grow-1 shadow-sm">
+                        <i class="fa-regular fa-comment-dots me-2"></i> Send Message
+                    </button>
+                    <button class="btn-call shadow-sm ms-3">
+                        <i class="fa-solid fa-phone"></i>
+                    </button>
+                </div>
+            </div>
+
+            <hr class="my-4 sheet-divider" />
+
+            <!-- Order Timeline -->
+            <div class="timeline">
+                @{
+                    bool isAccepted = true; // Always assumed accepted if not cancelled and exists
+                    bool isChecking = order.OrderStatus == "InProgress" || order.OrderStatus == "Shipped" || order.OrderStatus == "Delivered";
+                    bool isWay = order.OrderStatus == "Shipped" || order.OrderStatus == "Delivered";
+                    bool isDelivered = order.OrderStatus == "Delivered";
+                }
+
+                <div class="timeline-step @(isAccepted ? "active" : "")">
+                    <div class="step-icon">
+                        @if (isAccepted) { <i class="fa-solid fa-circle-check"></i> } else { <i class="fa-regular fa-circle"></i> }
+                    </div>
+                    <div class="step-content">
+                        <span class="step-title">Order Accepted</span>
+                        <span class="step-time">@order.CreatedAt.ToString("hh:mm tt")</span>
+                    </div>
+                </div>
+
+                <div class="timeline-step @(isChecking ? "active" : "")">
+                    <div class="step-icon">
+                        @if (isChecking) { <i class="fa-solid fa-circle-check"></i> } else { <i class="fa-regular fa-circle"></i> }
+                    </div>
+                    <div class="step-content">
+                        <span class="step-title">Checking Food</span>
+                        <span class="step-time">@(isChecking ? order.CreatedAt.AddMinutes(10).ToString("hh:mm tt") : "--:--")</span>
+                    </div>
+                </div>
+
+                <div class="timeline-step @(isWay ? "active" : "")">
+                    <div class="step-icon">
+                        @if (isWay) { <i class="fa-solid fa-circle-check"></i> } else { <i class="fa-regular fa-circle"></i> }
+                    </div>
+                    <div class="step-content">
+                        <span class="step-title">Foods On the way</span>
+                        <span class="step-time">@(isWay ? order.CreatedAt.AddMinutes(16).ToString("hh:mm tt") : "--:--")</span>
+                    </div>
+                </div>
+
+                <div class="timeline-step @(isDelivered ? "active" : "")">
+                    <div class="step-line-last"></div>
+                    <div class="step-icon">
+                        @if (isDelivered) { <i class="fa-solid fa-circle-check"></i> } else { <i class="fa-regular fa-circle"></i> }
+                    </div>
+                    <div class="step-content">
+                        <span class="step-title">Delivered to you</span>
+                        <span class="step-time">@(isDelivered ? order.CreatedAt.AddMinutes(34).ToString("hh:mm tt") : "--:--")</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    }
+</div>
+
+<style>
+    /* Styling for Tracking Page to match provided UI */
+    .tracking-page {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1050;
+        background-color: #f8f9fa;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .loading-overlay, .error-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        background: #fff;
+    }
+
+    .map-container {
+        position: relative;
+        flex: 1;
+        background-color: #e5e3df; /* Map base color */
+        overflow: hidden;
+    }
+
+    /* CSS Map Pattern */
+    .map-pattern {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-image: 
+            linear-gradient(45deg, #ffffff 25%, transparent 25%, transparent 75%, #ffffff 75%, #ffffff),
+            linear-gradient(45deg, #ffffff 25%, transparent 25%, transparent 75%, #ffffff 75%, #ffffff);
+        background-size: 60px 60px;
+        background-position: 0 0, 30px 30px;
+        opacity: 0.4;
+    }
+
+    .back-btn {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: #fff;
+        border: none;
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: #333;
+        z-index: 10;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    
+    .back-btn:hover {
+        transform: scale(1.05);
+    }
+
+    /* Markers and Route mock */
+    .marker {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.2rem;
+        z-index: 5;
+    }
+
+    .start-marker {
+        bottom: 30%;
+        left: 25%;
+        background: #333;
+    }
+
+    .end-marker {
+        top: 25%;
+        right: 25%;
+        background: #1877f2;
+    }
+
+    .pulse-ring {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: rgba(24, 119, 242, 0.4);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+        z-index: -1;
+    }
+
+    @@keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        100% { transform: scale(2.5); opacity: 0; }
+    }
+
+    .route-svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+    }
+
+    .animated-route {
+        stroke-dasharray: 10;
+        animation: dash 20s linear infinite;
+    }
+
+    @@keyframes dash {
+        to { stroke-dashoffset: -1000; }
+    }
+
+    .estimated-time {
+        position: absolute;
+        top: 20%;
+        right: 35%;
+        background: white;
+        padding: 12px 20px;
+        border-radius: 16px;
+        text-align: center;
+        z-index: 10;
+    }
+
+    .time-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #333;
+    }
+
+    /* Bottom Sheet */
+    .bottom-sheet {
+        background: #fff;
+        border-top-left-radius: 30px;
+        border-top-right-radius: 30px;
+        padding: 20px 30px 40px;
+        margin-top: -30px; /* Overlap map */
+        z-index: 20;
+        position: relative;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .sheet-handle {
+        width: 50px;
+        height: 6px;
+        background: #e0e0e0;
+        border-radius: 10px;
+        margin: 0 auto 25px;
+    }
+
+    .driver-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #ff6b6b;
+        padding: 2px;
+    }
+
+    .star {
+        color: #f59e0b;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    .btn-message {
+        background: #f8f9fa;
+        border: 1px solid #eee;
+        color: #555;
+        border-radius: 25px;
+        padding: 12px;
+        font-weight: 600;
+        text-align: left;
+        padding-left: 20px;
+        transition: all 0.2s;
+    }
+
+    .btn-message:hover {
+        background: #f1f3f5;
+    }
+
+    .btn-call {
+        background: #ff6b6b;
+        border: none;
+        color: white;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        font-size: 1.2rem;
+        transition: all 0.2s;
+    }
+
+    .btn-call:hover {
+        background: #fa5252;
+        transform: scale(1.05);
+    }
+
+    .sheet-divider {
+        border-top: 1px dashed #e0e0e0;
+        opacity: 0.5;
+    }
+
+    /* Timeline */
+    .timeline {
+        padding-left: 10px;
+        position: relative;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 20px; /* Center of the icon */
+        top: 10px;
+        bottom: 30px;
+        width: 2px;
+        background: #e0e0e0;
+        z-index: 1;
+    }
+
+    .timeline-step {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+        position: relative;
+        z-index: 2;
+    }
+
+    .timeline-step:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Cover the line for the last item down */
+    .step-line-last {
+       display: none;
+    }
+
+    .step-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: #ccc;
+    }
+
+    .timeline-step.active .step-icon {
+        color: #4CAF50; /* Green check */
+    }
+
+    .step-content {
+        flex: 1;
+        margin-left: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .step-title {
+        font-weight: 600;
+        color: #aaa;
+    }
+
+    .timeline-step.active .step-title {
+        color: #333;
+    }
+
+    .step-time {
+        font-size: 0.9rem;
+        color: #999;
+        font-weight: 500;
+    }
+
+    .timeline-step.active .step-time {
+        color: #555;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public Guid OrderId { get; set; }
+
+    private OrderDto? order;
+    private bool isLoading = true;
+
+    protected override bool RequireAdminRole => false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        
+        try
+        {
+            isLoading = true;
+            order = await OrderService.GetOrderAsync(OrderId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading tracking info: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/order-history");
+    }
+}

@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  food-db:
+    image: mysql:8.0
+    container_name: food-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - food-network
+
+  # Redis Cache
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - food-network
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - food-network
+
+  # Identity Service
+  identity-api:
+    build:
+      context: .
+      dockerfile: src/Services/Identity/Identity.API/Dockerfile
+    container_name: identity-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=food-db;Port=3306;Database=FoodIdentityDb;User=root;Password=123456;
+      - EmailSettings__SmtpServer=smtp.gmail.com
+      - EmailSettings__SmtpPort=587
+      - EmailSettings__SenderEmail=anpham3082004@gmail.com
+      - EmailSettings__SenderName=ClothesShop Tutorial
+      - EmailSettings__SenderPassword=xzejfczopsxhzsdt
+    ports:
+      - "5001:80"
+    depends_on:
+      - food-db
+    networks:
+      - food-network
+
+  # Catalog Service
+  catalog-api:
+    build:
+      context: .
+      dockerfile: src/Services/Catalog/Catalog.API/Dockerfile
+    container_name: catalog-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=food-db;Port=3306;Database=FoodCatalogDb;User=root;Password=123456;
+    ports:
+      - "5002:80"
+    depends_on:
+      - food-db
+    networks:
+      - food-network
+
+  # Basket Service
+  basket-api:
+    build:
+      context: .
+      dockerfile: src/Services/Basket/Basket.API/Dockerfile
+    container_name: basket-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5003:80"
+    depends_on:
+      - redis
+    networks:
+      - food-network
+
+  # Ordering Service
+  ordering-api:
+    build:
+      context: .
+      dockerfile: src/Services/Ordering/Ordering.API/Dockerfile
+    container_name: ordering-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=food-db;Port=3306;Database=FoodOrderingDb;User=root;Password=123456;
+      - EventBus__Connection=rabbitmq
+      - CatalogApiUrl=http://catalog-api/api/products
+    ports:
+      - "5004:80"
+    depends_on:
+      - food-db
+      - rabbitmq
+    networks:
+      - food-network
+
+  # Payment Service
+  payment-api:
+    build:
+      context: .
+      dockerfile: src/Services/Payment/Payment.API/Dockerfile
+    container_name: payment-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=food-db;Port=3306;Database=FoodPaymentDb;User=root;Password=123456;
+    ports:
+      - "5005:80"
+    depends_on:
+      - food-db
+    networks:
+      - food-network
+
+  # Review Service
+  review-api:
+    build:
+      context: .
+      dockerfile: src/Services/Review/Review.API/Dockerfile
+    container_name: review-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=food-db;Port=3306;Database=FoodReviewDb;User=root;Password=123456;
+    ports:
+      - "5006:80"
+    depends_on:
+      - food-db
+    networks:
+      - food-network
+
+  # API Gateway
+  apigateway:
+    build:
+      context: .
+      dockerfile: src/ApiGateways/ApiGateway/Dockerfile
+    container_name: apigateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "5000:80"
+    depends_on:
+      - identity-api
+      - catalog-api
+      - basket-api
+      - ordering-api
+      - payment-api
+      - review-api
+    networks:
+      - food-network
+
+volumes:
+  mysql-data:
+
+networks:
+  food-network:
+    driver: bridge

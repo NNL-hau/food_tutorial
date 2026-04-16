@@ -1,0 +1,155 @@
+@using Food.Web.Models
+@using Food.Web.Services
+@inject IProductApiService ProductService
+@inject ICategoryApiService CategoryService
+
+<div class="product-list-section">
+    <div class="section-header">
+        <h2>@Title</h2>
+    </div>
+    
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Đang tải món ăn...</p>
+        </div>
+    }
+    else if (products.Count == 0)
+    {
+        <div class="empty-state">
+            <p>Chưa có món ăn nào trong thực đơn này</p>
+        </div>
+    }
+    else
+    {
+        <div class="products-grid">
+            @foreach (var product in products.Take(DisplayCount))
+            {
+                <ProductCard Product="@product" />
+            }
+        </div>
+        
+        @if (products.Count > DisplayCount)
+        {
+            <div class="load-more-container">
+                <button class="btn-load-more" @onclick="LoadMore">
+                    Xem thêm món ăn
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Thực Đơn Món Ăn";
+    
+    [Parameter]
+    public int InitialCount { get; set; } = 12;
+
+    [Parameter]
+    public string? CategoryKeyword { get; set; }
+
+    [Parameter]
+    public string? SearchKeyword { get; set; }
+
+    [Parameter]
+    public decimal? MinPrice { get; set; }
+
+    [Parameter]
+    public decimal? MaxPrice { get; set; }
+
+    [Parameter]
+    public bool InStockOnly { get; set; }
+
+    [Parameter]
+    public string? SortOrder { get; set; } // "price_asc" or "price_desc"
+    
+    private List<ProductDto> products = new();
+    private int DisplayCount { get; set; }
+    private bool isLoading = true;
+
+    // Không cần async/await ở đây, tránh warning CS1998
+    protected override void OnInitialized()
+    {
+        DisplayCount = InitialCount;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        isLoading = true;
+        try
+        {
+            var allProducts = await ProductService.GetProductsAsync();
+            var filteredProducts = allProducts;
+            
+            // Filter by Category
+            if (!string.IsNullOrEmpty(CategoryKeyword))
+            {
+                var categories = await CategoryService.GetCategoriesAsync();
+                var targetCategoryIds = categories
+                    .Where(c => c.Name.Contains(CategoryKeyword, StringComparison.OrdinalIgnoreCase))
+                    .Select(c => c.Id)
+                    .ToList();
+                
+                filteredProducts = filteredProducts.Where(p => targetCategoryIds.Contains(p.CategoryId)).ToList();
+            }
+
+            // Filter by Search Keyword (Name)
+            if (!string.IsNullOrEmpty(SearchKeyword))
+            {
+                filteredProducts = filteredProducts
+                    .Where(p => p.Name.Contains(SearchKeyword, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            // Filter by Price Range
+            if (MinPrice.HasValue)
+            {
+                filteredProducts = filteredProducts.Where(p => p.Price >= MinPrice.Value).ToList();
+            }
+
+            if (MaxPrice.HasValue)
+            {
+                filteredProducts = filteredProducts.Where(p => p.Price <= MaxPrice.Value).ToList();
+            }
+
+            // Filter by Stock Status
+            if (InStockOnly)
+            {
+                filteredProducts = filteredProducts.Where(p => p.StockQuantity > 0).ToList();
+            }
+
+            // Sort products
+            if (SortOrder == "price_asc")
+            {
+                filteredProducts = filteredProducts.OrderBy(p => p.Price).ToList();
+            }
+            else if (SortOrder == "price_desc")
+            {
+                filteredProducts = filteredProducts.OrderByDescending(p => p.Price).ToList();
+            }
+
+            products = filteredProducts;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading products: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void LoadMore()
+    {
+        DisplayCount += 12;
+    }
+}

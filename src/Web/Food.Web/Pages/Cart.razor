@@ -1,0 +1,245 @@
+@page "/cart"
+@using Food.Web.Helpers
+@inject IBasketService BasketService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="cart-page-container">
+    <div class="cart-header">
+        <h1>Giỏ Hàng Của Bạn</h1>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="cart-loading">
+            <div class="spinner"></div>
+            <p>Đang tải giỏ hàng...</p>
+        </div>
+    }
+    else if (basket == null || !basket.Items.Any())
+    {
+        <div class="empty-cart">
+            <i class="fa-solid fa-utensils"></i>
+            <h2>Giỏ hàng của bạn đang trống</h2>
+            <p>Hôm nay bạn muốn ăn gì? Hãy khám phá thực đơn của chúng tôi nhé!</p>
+            <button @onclick="GoHome" class="btn-shopping">KHÁM PHÁ THỰC ĐƠN</button>
+        </div>
+    }
+    else
+    {
+        <div class="cart-content">
+            <div class="cart-items-container">
+                <div class="list-header">
+                    <div class="select-all-container">
+                        <input type="checkbox" checked="@(basket.Items.All(i => i.IsSelected))" @onchange="ToggleAll" id="selectAll" />
+                    </div>
+                    <span>Món ăn</span>
+                    <span></span> @* Empty for Image/Details spacing *@
+                    <span></span> @* Empty for Options spacing *@
+                    <span>Giá món</span>
+                    <span>Số lượng</span>
+                    <span>Thành tiền</span>
+                    <span></span>
+                </div>
+
+                <div class="cart-items-list">
+
+                @foreach (var item in basket.Items)
+                {
+                    <div class="cart-item @(item.IsSelected ? "" : "unselected")">
+                        <div class="item-selection">
+                            <input type="checkbox" checked="@item.IsSelected" @onchange="@(e => ToggleItem(item, e.Value))" />
+                        </div>
+                        
+                        <div class="item-visual">
+                            <img src="@ProductHelpers.GetFirstImageUrl(item.ImageUrl)" alt="@item.ProductName" />
+                        </div>
+
+                        <div class="item-main-info">
+                            <span class="item-name">@item.ProductName</span>
+                        </div>
+
+                        <div class="item-options-cells">
+                            <div class="option-select">
+                                <label>Mức độ:</label>
+                                <select @onchange="@(e => UpdateOptions(item, e.Value?.ToString(), item.SelectedSize))">
+                                    @foreach (var color in (item.AvailableColors ?? "").Split(',').Select(c => c.Trim()).Where(c => !string.IsNullOrEmpty(c)))
+                                    {
+                                        <option value="@color" selected="@(color.Trim().Equals(item.SelectedColor?.Trim(), StringComparison.OrdinalIgnoreCase))">@color</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="option-select">
+                                <label>Kích cỡ:</label>
+                                <select @onchange="@(e => UpdateOptions(item, item.SelectedColor, e.Value?.ToString()))">
+                                    @foreach (var size in (item.AvailableSizes ?? "").Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)))
+                                    {
+                                        <option value="@size" selected="@(size.Trim().Equals(item.SelectedSize?.Trim(), StringComparison.OrdinalIgnoreCase))">@size</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="item-price">@item.Price.ToString("N0") đ</div>
+
+                        <div class="item-quantity">
+                            <div class="quantity-control">
+                                <button class="q-btn" @onclick="() => UpdateQuantity(item, -1)">-</button>
+                                <span class="q-val">@item.Quantity</span>
+                                <button class="q-btn" @onclick="() => UpdateQuantity(item, 1)" disabled="@(item.Quantity >= item.StockQuantity)">+</button>
+                            </div>
+                        </div>
+
+                        <div class="item-total">@((item.Price * item.Quantity).ToString("N0")) đ</div>
+
+                        <div class="item-remove">
+                            <button class="remove-btn" @onclick="() => RemoveItem(item.ProductId, item.SelectedColor, item.SelectedSize)">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+            <div class="cart-summary">
+                <h3>Tóm tắt đơn đặt món</h3>
+                <div class="summary-line">
+                    <span>Tổng số lượng:</span>
+                    <span>@basket.TotalItems</span>
+                </div>
+                <div class="summary-line total">
+                    <span>Tổng cộng:</span>
+                    <span class="total-price">@basket.TotalPrice.ToString("N0") đ</span>
+                </div>
+                
+                <button class="btn-checkout" @onclick="GoToCheckout">ĐẶT MÓN NGAY</button>
+                <button class="btn-continue" @onclick="GoHome">THÊM MÓN KHÁC</button>
+            </div>
+        </div>
+
+        @if (relatedProducts != null && relatedProducts.Any())
+        {
+            <div class="related-products-section">
+                <h2>CÓ THỂ BẠN MUỐN THỬ THÊM</h2>
+                <div class="related-products-grid">
+                    @foreach (var product in relatedProducts)
+                    {
+                        <div class="related-product-card" @onclick="() => NavigateToProduct(product.Id)">
+                            <img src="@ProductHelpers.GetFirstImageUrl(product.ImageUrl)" alt="@product.Name" />
+                            <div class="related-product-info">
+                                <span class="p-name">@product.Name</span>
+                                <span class="p-price">@product.Price.ToString("N0") đ</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private CustomerBasket? basket;
+    private List<ProductDto>? relatedProducts;
+    private bool isLoading = true;
+
+    [Inject] private IProductApiService ProductApiService { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BasketService.OnChange += HandleBasketChange;
+        await LoadBasket();
+        await LoadRelatedProducts();
+    }
+
+    private async Task LoadBasket()
+    {
+        isLoading = true;
+        basket = await BasketService.GetBasketAsync();
+        
+        // Fix for items with missing AvailableColors/Sizes (old items)
+        if (basket != null && basket.Items.Any(i => string.IsNullOrEmpty(i.AvailableColors)))
+        {
+            foreach (var item in basket.Items.Where(i => string.IsNullOrEmpty(i.AvailableColors)))
+            {
+                var product = await ProductApiService.GetProductAsync(item.ProductId);
+                if (product != null)
+                {
+                    item.AvailableColors = string.IsNullOrEmpty(product.Colors) ? "Đen, Trắng, Xanh" : product.Colors;
+                    item.AvailableSizes = string.IsNullOrEmpty(product.Sizes) ? "S, M, L, XL, XXL" : product.Sizes;
+                    
+                    var colors = item.AvailableColors.Split(',').Select(c => c.Trim()).ToList();
+                    var sizes = item.AvailableSizes.Split(',').Select(s => s.Trim()).ToList();
+                    
+                    if (string.IsNullOrEmpty(item.SelectedColor))
+                        item.SelectedColor = colors.FirstOrDefault();
+                    if (string.IsNullOrEmpty(item.SelectedSize))
+                        item.SelectedSize = sizes.FirstOrDefault();
+                }
+            }
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadRelatedProducts()
+    {
+        if (basket?.Items.Any() == true)
+        {
+            var firstProductId = basket.Items.First().ProductId;
+            relatedProducts = await ProductApiService.GetRelatedProductsAsync(firstProductId);
+        }
+    }
+
+    private async void HandleBasketChange()
+    {
+        await LoadBasket();
+        await LoadRelatedProducts();
+    }
+
+    private async Task UpdateQuantity(BasketItem item, int change)
+    {
+        var newQuantity = item.Quantity + change;
+        if (newQuantity >= 0)
+        {
+            await BasketService.UpdateQuantityAsync(item.ProductId, item.SelectedColor, item.SelectedSize, newQuantity);
+        }
+    }
+
+    private async Task UpdateOptions(BasketItem item, string? newColor, string? newSize)
+    {
+        await BasketService.UpdateOptionsAsync(item.ProductId, item.SelectedColor, item.SelectedSize, newColor, newSize);
+    }
+
+    private async Task RemoveItem(Guid productId, string? color, string? size)
+    {
+        await BasketService.RemoveFromBasketAsync(productId, color, size);
+    }
+
+    private async Task ToggleItem(BasketItem item, object? value)
+    {
+        if (value is bool isSelected)
+        {
+            await BasketService.ToggleSelectionAsync(item.ProductId, item.SelectedColor, item.SelectedSize, isSelected);
+        }
+    }
+
+    private async Task ToggleAll(ChangeEventArgs e)
+    {
+        if (e.Value is bool isSelected)
+        {
+            await BasketService.ToggleAllSelectionAsync(isSelected);
+        }
+    }
+
+    private void GoHome() => Navigation.NavigateTo("/");
+    private void GoToCheckout() => Navigation.NavigateTo("/checkout");
+    private void NavigateToProduct(Guid id) => Navigation.NavigateTo($"/product/{id}");
+
+    public void Dispose()
+    {
+        BasketService.OnChange -= HandleBasketChange;
+    }
+}

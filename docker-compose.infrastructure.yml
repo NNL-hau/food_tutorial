@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  food-db:
+    image: mysql:8.0
+    container_name: food-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=food_platform
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - food-network
+
+  # Redis Cache
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - food-network
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - food-network
+
+volumes:
+  mysql-data:
+
+networks:
+  food-network:
+    driver: bridge

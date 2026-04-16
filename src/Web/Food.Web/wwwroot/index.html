@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FoodOrder - Đặt Món Ăn Ngon, Giao Tận Nơi</title>
+    <meta name="description" content="Đặt món ăn ngon từ nhà hàng uy tín. Giao hàng nhanh, đảm bảo chất lượng, nhiều ưu đãi hấp dẫn." />
+    <meta name="keywords" content="đặt món ăn, giao đồ ăn, nhà hàng, thực đơn" />
+    <base href="/" />
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/rescue-ui.css" />
+    <link rel="stylesheet" href="css/chatbox.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="Food.Web.styles.css" rel="stylesheet" />
+</head>
+
+<body>
+    <div id="app">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/google-auth.js"></script>
+    <script>
+        window.renderMarkdown = (text) => {
+            return marked.parse(text);
+        };
+        window.highlightAll = () => {
+            hljs.highlightAll();
+        };
+        window.downloadFile = (fileName, contentType, base64Data) => {
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = `data:${contentType};base64,${base64Data}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        (function () {
+            const app = document.getElementById('app');
+            const errorUi = document.getElementById('blazor-error-ui');
+
+            const showBootError = (message) => {
+                if (errorUi) {
+                    errorUi.style.display = 'block';
+                }
+                if (app) {
+                    app.innerHTML = `<div style="max-width:700px;margin:15vh auto;padding:20px 24px;background:#fff;border:1px solid #f1d5d5;border-radius:12px;color:#7f1d1d;font-family:Arial,sans-serif;">
+                        <h3 style="margin:0 0 10px 0;">Không thể tải ứng dụng</h3>
+                        <p style="margin:0 0 8px 0;">${message}</p>
+                        <p style="margin:0;font-size:13px;color:#991b1b;">Hãy nhấn Ctrl+F5 hoặc kiểm tra backend/API đang chạy.</p>
+                    </div>`;
+                }
+            };
+
+            const startupTimeout = setTimeout(() => {
+                showBootError("Ứng dụng tải quá lâu và có thể đang bị treo.");
+            }, 12000);
+
+            Blazor.start()
+                .then(() => clearTimeout(startupTimeout))
+                .catch((err) => {
+                    clearTimeout(startupTimeout);
+                    console.error("Blazor startup failed:", err);
+                    showBootError("Khởi động Blazor thất bại. Mở DevTools (F12) để xem lỗi chi tiết.");
+                });
+        })();
+    </script>
+</body>
+
+</html>

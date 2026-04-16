@@ -1,0 +1,250 @@
+.home-page {
+    background: #f8f9fa;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.lucky-drop-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.lucky-drop-box {
+    background: #fff;
+    width: 100%;
+    max-width: 420px;
+    border-radius: 24px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.lucky-drop-header {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);
+    color: #fff;
+    text-align: center;
+    padding: 40px 20px 25px;
+}
+
+.lucky-drop-body,
+.lucky-drop-footer {
+    padding: 25px;
+    background: #f8fafc;
+}
+
+.features-section {
+    padding: 40px 0;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 30px;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.feature-icon {
+    width: 50px;
+    height: 50px;
+    background: #e9ecef;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2f4858;
+}
+
+.category-spotlight {
+    padding: 80px 0;
+}
+
+.section-title {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.section-title h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e1b4b;
+    margin-bottom: 12px;
+}
+
+.title-underline {
+    width: 60px;
+    height: 5px;
+    background: linear-gradient(90deg, #ff6b35, #f7941d);
+    margin: 0 auto;
+    border-radius: 10px;
+}
+
+.spotlight-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 300px 300px;
+    gap: 20px;
+}
+
+.spotlight-item {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    text-decoration: none;
+    display: flex;
+    align-items: flex-end;
+    padding: 40px;
+    background-size: cover;
+    background-position: center;
+}
+
+.spotlight-item.spotlight-main {
+    grid-row: span 2;
+}
+
+.products-section {
+    padding: 60px 0 80px;
+}
+
+.home-filter-panel {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(47, 72, 88, 0.08);
+    padding: 28px 32px;
+    margin-bottom: 40px;
+    border: 1px solid #f0f0f0;
+}
+
+.filter-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.filter-row-top,
+.filter-row-cats {
+    border-bottom: 1px solid #f3f3f3;
+    padding-bottom: 18px;
+    margin-bottom: 18px;
+}
+
+.filter-row-actions {
+    justify-content: space-between;
+    align-items: center;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filter-search {
+    flex: 2;
+    min-width: 220px;
+}
+
+.filter-price {
+    flex: 2;
+    min-width: 240px;
+}
+
+.filter-sort {
+    flex: 1.5;
+    min-width: 180px;
+}
+
+.filter-stock {
+    flex: 1;
+    min-width: 130px;
+}
+
+.filter-input {
+    padding: 10px 14px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px;
+    width: 100%;
+}
+
+.search-wrap {
+    position: relative;
+}
+
+.clear-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+}
+
+.cat-chips,
+.active-filters,
+.action-btns,
+.sort-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cat-chip,
+.sort-pill,
+.btn-apply,
+.btn-reset {
+    border-radius: 10px;
+    border: 1.5px solid #e0e0e0;
+    background: #fff;
+    padding: 9px 14px;
+}
+
+.cat-chip.active,
+.sort-pill.active,
+.btn-apply {
+    background: #2f4858;
+    border-color: #2f4858;
+    color: #fff;
+}
+
+@media (max-width: 992px) {
+    .features-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .spotlight-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(3, 300px);
+    }
+
+    .spotlight-item.spotlight-main {
+        grid-row: span 1;
+    }
+}
+
+@media (max-width: 576px) {
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .home-filter-panel {
+        padding: 20px 16px;
+    }
+}

@@ -1,0 +1,173 @@
+@inject IAuthService AuthService
+@inject IBasketService BasketService
+@inject NavigationManager Navigation
+@using Food.Web.Services
+@implements IDisposable
+
+<header class="main-header">
+    <div class="header-container">
+        <div class="logo">
+            <a href="/">NHÓM 1</a>
+        </div>
+        
+        <nav class="main-nav">
+            <a href="/products?category=Món+Chính" class="nav-item">MÓN CHÍNH</a>
+            <a href="/products?category=Đồ+Uống" class="nav-item">ĐỒ UỐNG</a>
+            <a href="/products?category=Tráng+Miệng" class="nav-item">TRÁNG MIỆNG</a>
+        </nav>
+        
+        <div class="header-actions">
+            <div class="search-bar">
+                <input type="text" placeholder="Tìm kiếm món ăn..." 
+                       @bind="searchKeyword" 
+                       @onkeyup="HandleKeyUp" />
+                <button @onclick="HandleSearch">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+            </div>
+
+            @if (isAuthenticated && currentUser != null)
+            {
+                <div class="account-dropdown">
+                    <div class="account-trigger" @onclick="ToggleDropdown" @onclick:stopPropagation>
+                        <i class="fa-solid fa-circle-user"></i>
+                        <span class="account-name">@currentUser.FullName</span>
+                        <i class="fa-solid fa-chevron-down ms-1" style="font-size: 0.7rem;"></i>
+                    </div>
+                    
+                    @if (showDropdown)
+                    {
+                        <div class="dropdown-menu" @onclick:stopPropagation>
+                            <div class="dropdown-header">
+                                <strong style="color: #333 !important;">@currentUser.FullName</strong>
+                                <small style="color: #666 !important;">@currentUser.Email</small>
+                            </div>
+                            <div style="height: 1px; background: #eee; margin: 5px 0;"></div>
+                            <a href="/profile" class="dropdown-item" @onclick="ToggleDropdown">
+                                <i class="fa-solid fa-user-gear me-2"></i>
+                                <span>Thông tin tài khoản</span>
+                            </a>
+                            <a href="/order-history" class="dropdown-item" @onclick="ToggleDropdown">
+                                <i class="fa-solid fa-clock-rotate-left me-2"></i>
+                                <span>Lịch sử đặt món</span>
+                            </a>
+                            @if (currentUser.Role == "Admin")
+                            {
+                                <NavLink class="dropdown-item" href="/admin" style="display: flex !important; width: 100% !important;">
+                                    <i class="fa-solid fa-gauge me-2"></i>
+                                    <span>Trang quản trị</span>
+                                </NavLink>
+                            }
+                            <button class="dropdown-item logout-btn" @onclick="HandleLogout" style="display: flex !important; width: 100% !important;">
+                                <i class="fa-solid fa-right-from-bracket me-2"></i>
+                                <span>Đăng xuất</span>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <a href="/login" class="account-link">
+                    <i class="fa-solid fa-circle-user"></i>
+                    <span>Tài khoản</span>
+                </a>
+            }
+            
+            @if (currentUser?.Role != "Admin")
+            {
+                <a href="/cart" class="cart-link">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                    <span>Giỏ món ăn</span>
+                    @if (cartCount > 0)
+                    {
+                        <span class="cart-badge">@cartCount</span>
+                    }
+                </a>
+            }
+        </div>
+    </div>
+</header>
+
+@code {
+    private bool isAuthenticated = false;
+    private Models.UserInfo? currentUser = null;
+    private bool showDropdown = false;
+    private int cartCount = 0;
+    private string searchKeyword = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to events
+        AuthService.OnAuthStateChanged += HandleAuthStateChanged;
+        BasketService.OnChange += HandleBasketChange;
+        
+        await RefreshState();
+    }
+
+    private async Task RefreshState()
+    {
+        isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        
+        if (isAuthenticated)
+        {
+            currentUser = await AuthService.GetCurrentUserAsync();
+        }
+        else
+        {
+            currentUser = null;
+        }
+        
+        cartCount = await BasketService.GetBasketItemCountAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void HandleAuthStateChanged()
+    {
+        await RefreshState();
+    }
+
+    private async void HandleBasketChange()
+    {
+        cartCount = await BasketService.GetBasketItemCountAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnAuthStateChanged -= HandleAuthStateChanged;
+        BasketService.OnChange -= HandleBasketChange;
+    }
+
+    private void ToggleDropdown()
+    {
+        showDropdown = !showDropdown;
+        StateHasChanged();
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        cartCount = 0;
+        showDropdown = false;
+        StateHasChanged();
+        Navigation.NavigateTo("/", true);
+    }
+
+    private void HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            HandleSearch();
+        }
+    }
+
+    private void HandleSearch()
+    {
+        if (!string.IsNullOrWhiteSpace(searchKeyword))
+        {
+            Navigation.NavigateTo($"/products?search={Uri.EscapeDataString(searchKeyword)}");
+            searchKeyword = "";
+        }
+    }
+}

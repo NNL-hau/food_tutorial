@@ -1,0 +1,219 @@
+@using Food.Web.Services
+@inject IJSRuntime JS
+@inject IChatApiService ChatApiService
+@inject IAuthService authService
+@inject IBasketService basketService
+@inject IOrderApiService orderApiService
+
+@if (!isOpen)
+{
+    <div class="chat-floating-btn" @onclick="ToggleChat">
+        <i class='bx bx-message-square-dots'></i>
+    </div>
+}
+
+<div class="chat-container @(isOpen ? "" : "hidden") @(isMaximized ? "chat-maximized" : "")">
+    <div class="chat-header">
+        <h3>Trợ lý FoodOrder</h3>
+        <div class="chat-header-actions">
+            <button class="chat-maximize-btn" @onclick="ToggleMaximize">
+                <i class='bx @(isMaximized ? "bx-exit-fullscreen" : "bx-fullscreen")'></i>
+            </button>
+            <button class="chat-close-btn" @onclick="ToggleChat">
+                <i class='bx bx-chevron-down'></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+        @if (messages.Count == 0)
+        {
+            <div class="welcome-screen">
+                <i class='bx bxs-bot welcome-icon'></i>
+                <h4 style="color: var(--chat-text)">Tôi có thể giúp gì cho bạn?</h4>
+                <p style="color: var(--chat-text-dim)">Trợ lý ẩm thực thông minh của bạn. Hãy hỏi tôi về thực đơn, giá cả hoặc gợi ý món ngon nhé!</p>
+                
+                <div class="suggestions-grid">
+                    @if (isLoadingSuggestions)
+                    {
+                        @for (int i = 0; i < 4; i++)
+                        {
+                            <div class="suggestion-card skeleton-suggestion">
+                                <div class="skeleton-line" style="width: 80%"></div>
+                                <div class="skeleton-icon"></div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @foreach (var suggestion in suggestions)
+                        {
+                            <div class="suggestion-card" @onclick="() => UseSuggestion(suggestion.Text)">
+                                <p>@suggestion.Text</p>
+                                <i class='bx @suggestion.Icon'></i>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+
+        @foreach (var msg in messages)
+        {
+            <div class="message @(msg.IsUser ? "message-outgoing" : "message-incoming")">
+                <div class="message-avatar">
+                   <i class='bx @(msg.IsUser ? "bx-user" : "bxs-magic-wand")'></i>
+                </div>
+                <div class="message-content">
+                    @if (msg.IsUser)
+                    {
+                        @msg.Content
+                    }
+                    else
+                    {
+                        @((MarkupString)msg.HtmlContent)
+                    }
+                </div>
+            </div>
+        }
+
+        @if (isTyping)
+        {
+            <div class="message message-incoming">
+                <div class="message-avatar">
+                    <i class='bx bxs-magic-wand'></i>
+                </div>
+                <div class="message-content">
+                    <div class="loading-indicator">
+                        <div class="loading-bar" style="width: 100%"></div>
+                        <div class="loading-bar" style="width: 70%"></div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="chat-input-area">
+        <EditForm Model="@this" OnValidSubmit="SendMessage">
+            <div class="chat-input-wrapper">
+                <input type="text" @bind="userInput" placeholder="Bạn muốn tìm món gì?..." @bind:event="oninput" />
+                <button type="submit" class="chat-send-btn">
+                    <i class='bx bx-send'></i>
+                </button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private bool isOpen = false;
+    private bool isMaximized = false;
+    private string userInput = "";
+    private bool isTyping = false;
+    private List<ChatMessage> messages = new();
+
+    private void ToggleChat()
+    {
+        isOpen = !isOpen;
+
+        // Khi mở lại, giữ trạng thái phóng to hiện tại
+    }
+
+    private bool isLoadingSuggestions = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSuggestions();
+    }
+
+    private async Task LoadSuggestions()
+    {
+        isLoadingSuggestions = true;
+        suggestions = await ChatApiService.GetSuggestions();
+        isLoadingSuggestions = false;
+    }
+
+    private void ToggleMaximize()
+    {
+        if (!isOpen)
+        {
+            isOpen = true;
+        }
+
+        isMaximized = !isMaximized;
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput) || isTyping) return;
+
+        var userMsg = userInput;
+        userInput = "";
+        messages.Add(new ChatMessage { Content = userMsg, IsUser = true });
+        
+        isTyping = true;
+        await ScrollToBottom();
+
+        var currentUser = await authService.GetCurrentUserAsync();
+        
+        // 1. Gather Basket Context
+        string basketCtx = "";
+        try {
+            var basket = await basketService.GetBasketAsync();
+            if (basket.Items.Any()) {
+                basketCtx = string.Join("; ", basket.Items.Select(i => $"{i.Quantity}x {i.ProductName} ({i.SelectedColor}, {i.SelectedSize})"));
+            }
+        } catch {}
+
+        // 2. Gather Order Context
+        string orderCtx = "";
+        try {
+            var orders = await orderApiService.GetOrdersAsync();
+            if (orders.Any()) {
+                var latest = orders.OrderByDescending(o => o.CreatedAt).Take(3);
+                orderCtx = string.Join(" | ", latest.Select(o => $"Đơn {o.Id.ToString().Substring(0,8)}: {o.OrderStatus}, {o.TotalPrice:C}"));
+            }
+        } catch {}
+
+        // 3. Gather Profile Context
+        string profileCtx = "";
+        if (currentUser != null) {
+            profileCtx = $"Tên: {currentUser.FullName}, Email: {currentUser.Email}, SĐT: {currentUser.PhoneNumber}, Địa chỉ: {currentUser.Address}";
+        }
+
+        var response = await ChatApiService.GetChatResponse(userMsg, currentUser?.FullName, basketCtx, orderCtx, profileCtx);
+        
+        var htmlContent = await JS.InvokeAsync<string>("renderMarkdown", response);
+        
+        isTyping = false;
+        messages.Add(new ChatMessage { 
+            Content = response, 
+            HtmlContent = htmlContent,
+            IsUser = false 
+        });
+
+        await ScrollToBottom();
+        await JS.InvokeVoidAsync("highlightAll");
+    }
+
+    private async Task UseSuggestion(string text)
+    {
+        userInput = text;
+        await SendMessage();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private List<SuggestionDto> suggestions = new();
+
+    public class ChatMessage
+    {
+        public string Content { get; set; } = "";
+        public string HtmlContent { get; set; } = "";
+        public bool IsUser { get; set; }
+    }
+}
